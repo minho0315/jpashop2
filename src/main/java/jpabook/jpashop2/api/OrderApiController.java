@@ -2,6 +2,10 @@ package jpabook.jpashop2.api;
 
 import jpabook.jpashop2.domain.*;
 import jpabook.jpashop2.repository.OrderRepository;
+import jpabook.jpashop2.repository.order.query.OrderFlatDto;
+import jpabook.jpashop2.repository.order.query.OrderItemQueryDto;
+import jpabook.jpashop2.repository.order.query.OrderQueryDto;
+import jpabook.jpashop2.repository.order.query.OrderQueryRepository;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,13 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.*;
 
 @RestController
 @RequiredArgsConstructor
 public class OrderApiController {
 
     private final OrderRepository orderRepository;
+    private final OrderQueryRepository orderQueryRepository;
 
     /**
      * V1. 엔티티 직접 노출
@@ -100,5 +105,37 @@ public class OrderApiController {
                 .map(o -> new OrderDto(o))
                 .collect(toList());
         return result;
+    }
+
+    /**
+     * V4 JPA에서 DTO 직접 조회
+     */
+    @GetMapping("/api/v4/orders")
+    public List<OrderQueryDto> ordersV4() {
+        return orderQueryRepository.findOrderQueryDtos();
+    }
+
+    /**
+     * V5 JPA에서 DTO 직접 조회 - 컬렉션 조회 최적화
+     */
+    @GetMapping("/api/v5/orders")
+    public List<OrderQueryDto> ordersV5() {
+        return orderQueryRepository.findAllByDto_optimization();
+    }
+
+
+    @GetMapping("/api/v6/orders")
+    public List<OrderQueryDto> ordersV6() {
+        List<OrderFlatDto> flats = orderQueryRepository.findAllByDto_flat();
+        return flats.stream()
+                .collect(groupingBy(o -> new OrderQueryDto(o.getOrderId(),
+                                o.getName(), o.getOrderDate(), o.getOrderStatus(), o.getAddress()),
+                        mapping(o -> new OrderItemQueryDto(o.getOrderId(),
+                                o.getItemName(), o.getOrderPrice(), o.getCount()), toList())
+                )).entrySet().stream()
+                .map(e -> new OrderQueryDto(e.getKey().getOrderId(),
+                        e.getKey().getName(), e.getKey().getOrderDate(), e.getKey().getOrderStatus(),
+                        e.getKey().getAddress(), e.getValue()))
+                .collect(toList());
     }
 }
